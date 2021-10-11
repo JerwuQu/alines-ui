@@ -81,13 +81,13 @@ class AlinesConnection {
       }
 
       _socket = socket;
-      socket.listen((data) {
+      var sockListen = socket.listen((data) {
         for (var el in data) {
           _dataStream.add(el);
         }
-      }).onError((err) {
-        destroy();
       });
+      sockListen.onDone(() => destroy());
+      sockListen.onError((err) => destroy());
 
       _byteQueue = StreamQueue<int>(_dataStream.stream);
       _readPacketsEvents().listen((event) => _eventStream.add(event));

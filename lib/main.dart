@@ -53,6 +53,7 @@ class ConnectionPageState extends State<ConnectionPage> {
   late AlinesConnection connection;
   bool connected = false;
   Menu? menu;
+  String filter = '';
 
   ConnectionPageState() : super();
 
@@ -66,7 +67,10 @@ class ConnectionPageState extends State<ConnectionPage> {
       if (e is ConnectedEvent) {
         setState(() => connected = true);
       } else if (e is OpenMenuEvent) {
-        setState(() => menu = e.menu);
+        setState(() {
+          menu = e.menu;
+          filter = '';
+        });
       } else if (e is CloseMenuEvent) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Host closed menu')));
@@ -95,19 +99,50 @@ class ConnectionPageState extends State<ConnectionPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     } else if (menu != null) {
+      var filteredEntries = menu!.entries
+          .where((e) => e.toLowerCase().contains(filter.toLowerCase()))
+          .toList();
       w = Scaffold(
           appBar: AppBar(
-              title:
-                  Text('${menu!.title} (${menu!.entries.length.toString()})')),
-          body: ListView.builder(
-            itemCount: menu!.entries.length,
-            itemBuilder: (context, index) => ListTile(
-              title: Text(menu!.entries[index]),
-              onTap: () {
-                connection.selectSingleEntry(index);
-                setState(() => menu = null);
-              },
-            ),
+              title: Text(
+                  '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})')),
+          body: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                child: TextFormField(
+                  initialValue: filter,
+                  decoration: InputDecoration(
+                      hintText: menu!.customEntry
+                          ? 'Filter / Custom Entry'
+                          : 'Filter'),
+                  onChanged: (str) => setState(() => filter = str),
+                  onFieldSubmitted: menu!.customEntry
+                      ? (str) {
+                          connection.customEntry(str);
+                          setState(() => menu = null);
+                        }
+                      : null,
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filteredEntries.length,
+                  itemBuilder: (context, index) => ListTile(
+                    title: Text(filteredEntries[index]),
+                    onTap: () {
+                      connection.selectSingleEntry(index);
+                      setState(() => menu = null);
+                    },
+                    onLongPress: () {
+                      if (menu!.multipleChoice) {
+                        // TODO
+                      }
+                    },
+                  ),
+                ),
+              )
+            ],
           ));
     } else {
       return Scaffold(
@@ -117,17 +152,18 @@ class ConnectionPageState extends State<ConnectionPage> {
     }
 
     return WillPopScope(
-        onWillPop: () async {
-          if (menu == null) {
-            connection.destroy();
-            return true;
-          } else {
-            connection.closeMenu();
-            setState(() => menu = null);
-            return false;
-          }
-        },
-        child: w);
+      child: w,
+      onWillPop: () async {
+        if (menu == null) {
+          connection.destroy();
+          return true;
+        } else {
+          connection.closeMenu();
+          setState(() => menu = null);
+          return false;
+        }
+      },
+    );
   }
 }
 
@@ -165,9 +201,11 @@ class SettingsPageState extends State<SettingsPage> {
   Future<void> connect() async {
     await savePrefs();
     Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (ctx) => ConnectionPage(connInfo: connInfo)));
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => ConnectionPage(connInfo: connInfo),
+      ),
+    );
   }
 
   @override
@@ -182,24 +220,27 @@ class SettingsPageState extends State<SettingsPage> {
               appBar: AppBar(title: const Text('Connection Settings')),
               body: Padding(
                 padding: const EdgeInsets.all(8),
-                child: Center(
-                    child: Column(children: [
-                  TextFormField(
+                child: Column(
+                  children: [
+                    TextFormField(
                       decoration: const InputDecoration(hintText: 'Address'),
                       initialValue: connInfo.address,
-                      onChanged: (str) => {connInfo.address = str}),
-                  TextFormField(
+                      onChanged: (str) => {connInfo.address = str},
+                    ),
+                    TextFormField(
                       decoration: const InputDecoration(hintText: 'Port'),
                       keyboardType: TextInputType.number,
                       initialValue: connInfo.port.toString(),
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (str) =>
-                          {connInfo.port = int.tryParse(str) ?? 0}),
-                  TextFormField(
+                          connInfo.port = int.tryParse(str) ?? 0,
+                    ),
+                    TextFormField(
                       decoration: const InputDecoration(hintText: 'Password'),
                       initialValue: connInfo.password,
-                      onChanged: (str) => {connInfo.password = str}),
-                  TextButton(
+                      onChanged: (str) => {connInfo.password = str},
+                    ),
+                    TextButton(
                       onPressed: () => {connect()},
                       style: TextButton.styleFrom(
                         primary: Theme.of(context).colorScheme.primary,
@@ -207,8 +248,10 @@ class SettingsPageState extends State<SettingsPage> {
                         elevation: 3,
                         padding: const EdgeInsets.all(8),
                       ),
-                      child: const Text('Connect')),
-                ])),
+                      child: const Text('Connect'),
+                    ),
+                  ],
+                ),
               ));
         });
   }

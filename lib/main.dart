@@ -52,8 +52,11 @@ class ConnectionPage extends StatefulWidget {
 class ConnectionPageState extends State<ConnectionPage> {
   late AlinesConnection connection;
   bool connected = false;
+
   Menu? menu;
-  String filter = '';
+  late List<MapEntry<int, String>> filteredEntries;
+  late bool multiSelect;
+  late List<bool> selectedEntries;
 
   ConnectionPageState() : super();
 
@@ -69,7 +72,8 @@ class ConnectionPageState extends State<ConnectionPage> {
       } else if (e is OpenMenuEvent) {
         setState(() {
           menu = e.menu;
-          filter = '';
+          filteredEntries = menu!.entries.asMap().entries.toList();
+          multiSelect = false;
         });
       } else if (e is CloseMenuEvent) {
         ScaffoldMessenger.of(context)
@@ -99,51 +103,94 @@ class ConnectionPageState extends State<ConnectionPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     } else if (menu != null) {
-      var filteredEntries = menu!.entries
-          .where((e) => e.toLowerCase().contains(filter.toLowerCase()))
-          .toList();
       w = Scaffold(
-          appBar: AppBar(
-              title: Text(
-                  '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})')),
-          body: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                child: TextFormField(
-                  initialValue: filter,
-                  decoration: InputDecoration(
-                      hintText: menu!.customEntry
-                          ? 'Filter / Custom Entry'
-                          : 'Filter'),
-                  onChanged: (str) => setState(() => filter = str),
-                  onFieldSubmitted: menu!.customEntry
-                      ? (str) {
-                          connection.customEntry(str);
-                          setState(() => menu = null);
-                        }
+        appBar: AppBar(
+            title: Text(
+                '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})')),
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              child: TextFormField(
+                decoration: InputDecoration(
+                    hintText:
+                        menu!.customEntry ? 'Filter / Custom Entry' : 'Filter'),
+                onChanged: (str) {
+                  var lowerStr = str.toLowerCase();
+                  var newFilteredEntries = menu!.entries
+                      .asMap()
+                      .entries
+                      .where((e) => e.value.toLowerCase().contains(lowerStr))
+                      .toList();
+                  setState(() => filteredEntries = newFilteredEntries);
+                },
+                onFieldSubmitted: menu!.customEntry
+                    ? (str) {
+                        connection.customEntry(str);
+                        setState(() => menu = null);
+                      }
+                    : null,
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredEntries.length,
+                itemBuilder: (context, fidx) => ListTile(
+                  title: Text(filteredEntries[fidx].value),
+                  leading: multiSelect
+                      ? Icon(
+                          selectedEntries[filteredEntries[fidx].key]
+                              ? Icons.check_box
+                              : Icons.check_box_outline_blank,
+                          size: 30.0,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
                       : null,
+                  onTap: () {
+                    if (multiSelect) {
+                      setState(() =>
+                          selectedEntries[filteredEntries[fidx].key] =
+                              !selectedEntries[filteredEntries[fidx].key]);
+                    } else {
+                      connection.selectSingleEntry(filteredEntries[fidx].key);
+                      setState(() => menu = null);
+                    }
+                  },
+                  onLongPress: () {
+                    if (menu!.multipleChoice) {
+                      if (multiSelect) {
+                        setState(() => multiSelect = false);
+                      } else {
+                        setState(() {
+                          multiSelect = true;
+                          selectedEntries =
+                              List.filled(menu!.entries.length, false);
+                          selectedEntries[filteredEntries[fidx].key] = true;
+                        });
+                      }
+                    }
+                  },
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: filteredEntries.length,
-                  itemBuilder: (context, index) => ListTile(
-                    title: Text(filteredEntries[index]),
-                    onTap: () {
-                      connection.selectSingleEntry(index);
-                      setState(() => menu = null);
-                    },
-                    onLongPress: () {
-                      if (menu!.multipleChoice) {
-                        // TODO
-                      }
-                    },
-                  ),
-                ),
+            )
+          ],
+        ),
+        floatingActionButton: multiSelect
+            ? FloatingActionButton(
+                child: const Icon(Icons.send),
+                onPressed: () {
+                  var selectedEntriesList = selectedEntries
+                      .asMap()
+                      .entries
+                      .where((el) => el.value)
+                      .map((el) => el.key)
+                      .toList();
+                  connection.selectMultipleEntries(selectedEntriesList);
+                  setState(() => menu = null);
+                },
               )
-            ],
-          ));
+            : null,
+      );
     } else {
       return Scaffold(
         appBar: AppBar(title: const Text('Waiting for menu...')),
@@ -217,42 +264,43 @@ class SettingsPageState extends State<SettingsPage> {
             return const Loading();
           }
           return Scaffold(
-              appBar: AppBar(title: const Text('Connection Settings')),
-              body: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      decoration: const InputDecoration(hintText: 'Address'),
-                      initialValue: connInfo.address,
-                      onChanged: (str) => {connInfo.address = str},
+            appBar: AppBar(title: const Text('Connection Settings')),
+            body: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                children: [
+                  TextFormField(
+                    decoration: const InputDecoration(hintText: 'Address'),
+                    initialValue: connInfo.address,
+                    onChanged: (str) => {connInfo.address = str},
+                  ),
+                  TextFormField(
+                    decoration: const InputDecoration(hintText: 'Port'),
+                    keyboardType: TextInputType.number,
+                    initialValue: connInfo.port.toString(),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onChanged: (str) => connInfo.port = int.tryParse(str) ?? 0,
+                  ),
+                  TextFormField(
+                    decoration: const InputDecoration(hintText: 'Password'),
+                    initialValue: connInfo.password,
+                    onChanged: (str) => {connInfo.password = str},
+                  ),
+                  // TODO: option to automatically connect on app launch
+                  TextButton(
+                    onPressed: () => {connect()},
+                    style: TextButton.styleFrom(
+                      primary: Theme.of(context).colorScheme.primary,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      elevation: 3,
+                      padding: const EdgeInsets.all(8),
                     ),
-                    TextFormField(
-                      decoration: const InputDecoration(hintText: 'Port'),
-                      keyboardType: TextInputType.number,
-                      initialValue: connInfo.port.toString(),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onChanged: (str) =>
-                          connInfo.port = int.tryParse(str) ?? 0,
-                    ),
-                    TextFormField(
-                      decoration: const InputDecoration(hintText: 'Password'),
-                      initialValue: connInfo.password,
-                      onChanged: (str) => {connInfo.password = str},
-                    ),
-                    TextButton(
-                      onPressed: () => {connect()},
-                      style: TextButton.styleFrom(
-                        primary: Theme.of(context).colorScheme.primary,
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        elevation: 3,
-                        padding: const EdgeInsets.all(8),
-                      ),
-                      child: const Text('Connect'),
-                    ),
-                  ],
-                ),
-              ));
+                    child: const Text('Connect'),
+                  ),
+                ],
+              ),
+            ),
+          );
         });
   }
 }

@@ -54,8 +54,6 @@ class OpenMenuEvent implements AlinesEvent {
   OpenMenuEvent(this.menu);
 }
 
-class CloseMenuEvent implements AlinesEvent {}
-
 class DisconnectEvent implements AlinesEvent {
   final String message;
   DisconnectEvent(this.message);

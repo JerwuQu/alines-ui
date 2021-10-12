@@ -52,6 +52,7 @@ class ConnectionPage extends StatefulWidget {
 class ConnectionPageState extends State<ConnectionPage> {
   late AlinesConnection connection;
   bool connected = false;
+  late StreamSubscription<AlinesEvent> eventSub;
 
   Menu? menu;
   late List<MapEntry<int, String>> filteredEntries;
@@ -65,8 +66,7 @@ class ConnectionPageState extends State<ConnectionPage> {
     super.initState();
     connection = AlinesConnection(widget.connInfo);
 
-    late StreamSubscription<AlinesEvent> sub;
-    sub = connection.eventStream().listen((e) {
+    eventSub = connection.eventStream().listen((e) {
       if (e is ConnectedEvent) {
         setState(() => connected = true);
       } else if (e is OpenMenuEvent) {
@@ -75,17 +75,13 @@ class ConnectionPageState extends State<ConnectionPage> {
           filteredEntries = menu!.entries.asMap().entries.toList();
           multiSelect = false;
         });
-      } else if (e is CloseMenuEvent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Host closed menu')));
-        setState(() => menu = null);
       } else if (e is DisconnectEvent) {
-        sub.cancel();
+        eventSub.cancel();
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Disconnected: ' + e.message)));
         Navigator.pop(context);
       } else if (e is DestroyedEvent) {
-        sub.cancel();
+        eventSub.cancel();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content:
                 Text(connected ? 'Connection lost' : 'Failed to connect')));
@@ -105,8 +101,19 @@ class ConnectionPageState extends State<ConnectionPage> {
     } else if (menu != null) {
       w = Scaffold(
         appBar: AppBar(
-            title: Text(
-                '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})')),
+          title: Text(
+              '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.power_off),
+              onPressed: () {
+                eventSub.cancel();
+                connection.destroy();
+                Navigator.pop(context);
+              },
+            )
+          ],
+        ),
         body: Column(
           children: [
             Container(
@@ -222,22 +229,30 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsPageState extends State<SettingsPage> {
+  late bool autoConnect;
   late ConnectionInfo connInfo;
-  late Future<void> _loadPrefs;
+  late Future _loadPrefs;
 
   SettingsPageState() : super() {
     _loadPrefs = loadPrefs();
+    _loadPrefs.then((_) {
+      if (autoConnect) {
+        connect();
+      }
+    });
   }
 
-  Future<void> savePrefs() async {
+  Future savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('autoconnect', autoConnect);
     prefs.setString('conn-addr', connInfo.address);
     prefs.setInt('conn-port', connInfo.port);
     prefs.setString('conn-pass', connInfo.password);
   }
 
-  Future<void> loadPrefs() async {
+  Future loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    autoConnect = prefs.getBool('autoconnect') ?? false;
     connInfo = ConnectionInfo(
       prefs.getString('conn-addr') ?? '192.168.x.x',
       prefs.getInt('conn-port') ?? 64937,
@@ -245,7 +260,7 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> connect() async {
+  Future connect() async {
     await savePrefs();
     Navigator.push(
       context,
@@ -272,7 +287,7 @@ class SettingsPageState extends State<SettingsPage> {
                   TextFormField(
                     decoration: const InputDecoration(hintText: 'Address'),
                     initialValue: connInfo.address,
-                    onChanged: (str) => {connInfo.address = str},
+                    onChanged: (str) => connInfo.address = str,
                   ),
                   TextFormField(
                     decoration: const InputDecoration(hintText: 'Port'),
@@ -284,11 +299,23 @@ class SettingsPageState extends State<SettingsPage> {
                   TextFormField(
                     decoration: const InputDecoration(hintText: 'Password'),
                     initialValue: connInfo.password,
-                    onChanged: (str) => {connInfo.password = str},
+                    onChanged: (str) => connInfo.password = str,
                   ),
-                  // TODO: option to automatically connect on app launch
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: autoConnect,
+                        onChanged: (val) =>
+                            setState(() => autoConnect = val ?? false),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() => autoConnect = !autoConnect),
+                        child: const Text('Autoconnect '),
+                      ),
+                    ],
+                  ),
                   TextButton(
-                    onPressed: () => {connect()},
+                    onPressed: () => connect(),
                     style: TextButton.styleFrom(
                       primary: Theme.of(context).colorScheme.primary,
                       backgroundColor: Theme.of(context).colorScheme.surface,

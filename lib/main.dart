@@ -22,15 +22,6 @@ class AlinesApp extends StatelessWidget {
   }
 }
 
-class Loading extends StatelessWidget {
-  const Loading({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Text('Loading...'));
-  }
-}
-
 class MenuWidget extends StatelessWidget {
   const MenuWidget({Key? key}) : super(key: key);
 
@@ -90,16 +81,45 @@ class ConnectionPageState extends State<ConnectionPage> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    late Widget w;
-    if (!connected) {
-      w = Scaffold(
-        appBar: AppBar(title: const Text('Connecting...')),
-        body: const Center(child: CircularProgressIndicator()),
+  Widget _menuScreenList() => ListView.builder(
+        itemCount: filteredEntries.length,
+        itemBuilder: (context, fidx) => ListTile(
+          title: Text(filteredEntries[fidx].value),
+          leading: multiSelect
+              ? Icon(
+                  selectedEntries[filteredEntries[fidx].key]
+                      ? Icons.check_box
+                      : Icons.check_box_outline_blank,
+                  size: 30.0,
+                  color: Theme.of(context).colorScheme.primary,
+                )
+              : null,
+          onTap: () {
+            if (multiSelect) {
+              setState(() => selectedEntries[filteredEntries[fidx].key] =
+                  !selectedEntries[filteredEntries[fidx].key]);
+            } else {
+              connection.selectSingleEntry(filteredEntries[fidx].key);
+              setState(() => menu = null);
+            }
+          },
+          onLongPress: () {
+            if (menu!.multipleChoice) {
+              if (multiSelect) {
+                setState(() => multiSelect = false);
+              } else {
+                setState(() {
+                  multiSelect = true;
+                  selectedEntries = List.filled(menu!.entries.length, false);
+                  selectedEntries[filteredEntries[fidx].key] = true;
+                });
+              }
+            }
+          },
+        ),
       );
-    } else if (menu != null) {
-      w = Scaffold(
+
+  Widget _menuScreen() => Scaffold(
         appBar: AppBar(
           title: Text(
               '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})'),
@@ -139,47 +159,7 @@ class ConnectionPageState extends State<ConnectionPage> {
                     : null,
               ),
             ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: filteredEntries.length,
-                itemBuilder: (context, fidx) => ListTile(
-                  title: Text(filteredEntries[fidx].value),
-                  leading: multiSelect
-                      ? Icon(
-                          selectedEntries[filteredEntries[fidx].key]
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 30.0,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
-                      : null,
-                  onTap: () {
-                    if (multiSelect) {
-                      setState(() =>
-                          selectedEntries[filteredEntries[fidx].key] =
-                              !selectedEntries[filteredEntries[fidx].key]);
-                    } else {
-                      connection.selectSingleEntry(filteredEntries[fidx].key);
-                      setState(() => menu = null);
-                    }
-                  },
-                  onLongPress: () {
-                    if (menu!.multipleChoice) {
-                      if (multiSelect) {
-                        setState(() => multiSelect = false);
-                      } else {
-                        setState(() {
-                          multiSelect = true;
-                          selectedEntries =
-                              List.filled(menu!.entries.length, false);
-                          selectedEntries[filteredEntries[fidx].key] = true;
-                        });
-                      }
-                    }
-                  },
-                ),
-              ),
-            )
+            Expanded(child: _menuScreenList())
           ],
         ),
         floatingActionButton: multiSelect
@@ -198,6 +178,17 @@ class ConnectionPageState extends State<ConnectionPage> {
               )
             : null,
       );
+
+  @override
+  Widget build(BuildContext context) {
+    late Widget w;
+    if (!connected) {
+      w = Scaffold(
+        appBar: AppBar(title: const Text('Connecting...')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    } else if (menu != null) {
+      w = _menuScreen();
     } else {
       return Scaffold(
         appBar: AppBar(title: const Text('Waiting for menu...')),
@@ -270,64 +261,64 @@ class SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  List<Widget> _inputList() => [
+        TextFormField(
+          decoration: const InputDecoration(hintText: 'Address'),
+          initialValue: connInfo.address,
+          onChanged: (str) => connInfo.address = str,
+        ),
+        TextFormField(
+          decoration: const InputDecoration(hintText: 'Port'),
+          keyboardType: TextInputType.number,
+          initialValue: connInfo.port.toString(),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (str) => connInfo.port = int.tryParse(str) ?? 0,
+        ),
+        TextFormField(
+          decoration: const InputDecoration(hintText: 'Password'),
+          initialValue: connInfo.password,
+          onChanged: (str) => connInfo.password = str,
+        ),
+        Row(
+          children: [
+            Checkbox(
+              value: autoConnect,
+              onChanged: (val) => setState(() => autoConnect = val ?? false),
+            ),
+            GestureDetector(
+              onTap: () => setState(() => autoConnect = !autoConnect),
+              child: const Text('Autoconnect'),
+            ),
+          ],
+        ),
+        TextButton(
+          onPressed: () => connect(),
+          style: TextButton.styleFrom(
+            primary: Theme.of(context).colorScheme.primary,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 3,
+            padding: const EdgeInsets.all(8),
+          ),
+          child: const Text('Connect'),
+        ),
+      ];
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<void>(
-        future: _loadPrefs,
-        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Loading();
-          }
-          return Scaffold(
-            appBar: AppBar(title: const Text('Connection Settings')),
-            body: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                children: [
-                  TextFormField(
-                    decoration: const InputDecoration(hintText: 'Address'),
-                    initialValue: connInfo.address,
-                    onChanged: (str) => connInfo.address = str,
-                  ),
-                  TextFormField(
-                    decoration: const InputDecoration(hintText: 'Port'),
-                    keyboardType: TextInputType.number,
-                    initialValue: connInfo.port.toString(),
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    onChanged: (str) => connInfo.port = int.tryParse(str) ?? 0,
-                  ),
-                  TextFormField(
-                    decoration: const InputDecoration(hintText: 'Password'),
-                    initialValue: connInfo.password,
-                    onChanged: (str) => connInfo.password = str,
-                  ),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: autoConnect,
-                        onChanged: (val) =>
-                            setState(() => autoConnect = val ?? false),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(() => autoConnect = !autoConnect),
-                        child: const Text('Autoconnect '),
-                      ),
-                    ],
-                  ),
-                  TextButton(
-                    onPressed: () => connect(),
-                    style: TextButton.styleFrom(
-                      primary: Theme.of(context).colorScheme.primary,
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      elevation: 3,
-                      padding: const EdgeInsets.all(8),
-                    ),
-                    child: const Text('Connect'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        });
+      future: _loadPrefs,
+      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Text('Loading...'));
+        }
+        return Scaffold(
+          appBar: AppBar(title: const Text('Connection Settings')),
+          body: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(children: _inputList()),
+          ),
+        );
+      },
+    );
   }
 }

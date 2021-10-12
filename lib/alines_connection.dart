@@ -121,6 +121,7 @@ class AlinesConnection {
         if (packetId == 0) {
           yield DisconnectEvent(await _readString());
           destroy();
+          break;
         } else if (packetId == 1) {
           var flags = await _readU8();
           var entryCount = await _readU16();
@@ -139,7 +140,7 @@ class AlinesConnection {
     }
   }
 
-  void destroy() {
+  void destroy() async {
     if (_destroyed) {
       return;
     }
@@ -148,6 +149,9 @@ class AlinesConnection {
       _socket.destroy();
       _dataStream.close();
       _connected = false;
+      while (_eventStream.hasListener && await _byteQueue.hasNext) {
+        await Future.delayed(const Duration(milliseconds: 1));
+      }
     }
     _eventStream.add(DestroyedEvent());
     _eventStream.close();

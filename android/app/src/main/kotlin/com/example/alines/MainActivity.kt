@@ -1,4 +1,4 @@
-package com.example.alines
+package se.ramse.alinesui
 
 import io.flutter.embedding.android.FlutterActivity
 

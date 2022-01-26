@@ -37,9 +37,10 @@ class OutgoingPacket {
 
 class Menu {
   final String title;
+  final int? selectedEntry; // TODO: use
   final List<String> entries;
   late bool multipleChoice, customEntry;
-  Menu(this.title, this.entries, int flags) {
+  Menu(this.title, this.selectedEntry, this.entries, int flags) {
     multipleChoice = (flags & 1) > 0;
     customEntry = (flags & 2) > 0;
   }
@@ -58,6 +59,8 @@ class DisconnectEvent implements AlinesEvent {
   final String message;
   DisconnectEvent(this.message);
 }
+
+class CloseMenuEvent implements AlinesEvent {}
 
 class DestroyedEvent implements AlinesEvent {}
 
@@ -123,12 +126,16 @@ class AlinesConnection {
         } else if (packetId == 1) {
           var flags = await _readU8();
           var entryCount = await _readU16();
+          var selectedEntry = await _readU16();
           var title = await _readString();
           var entries = <String>[];
           for (var i = 0; i < entryCount; i++) {
             entries.add(await _readString());
           }
-          yield OpenMenuEvent(Menu(title, entries, flags));
+          yield OpenMenuEvent(Menu(title,
+              selectedEntry > 0 ? selectedEntry - 1 : null, entries, flags));
+        } else if (packetId == 2) {
+          yield CloseMenuEvent();
         } else {
           throw "Invalid incoming packet id";
         }

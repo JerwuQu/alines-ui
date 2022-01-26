@@ -66,6 +66,10 @@ class ConnectionPageState extends State<ConnectionPage> {
           filteredEntries = menu!.entries.asMap().entries.toList();
           multiSelect = false;
         });
+      } else if (e is CloseMenuEvent) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Server closed menu')));
+        setState(() => menu = null);
       } else if (e is DisconnectEvent) {
         eventSub.cancel();
         ScaffoldMessenger.of(context).showSnackBar(

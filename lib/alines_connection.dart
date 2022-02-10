@@ -37,7 +37,7 @@ class OutgoingPacket {
 
 class Menu {
   final String title;
-  final int? selectedEntry; // TODO: use
+  final int? selectedEntry;
   final List<String> entries;
   late bool multipleChoice, customEntry;
   Menu(this.title, this.selectedEntry, this.entries, int flags) {

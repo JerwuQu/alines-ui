@@ -16,7 +16,9 @@ class AlinesApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'alines',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData(
+          colorScheme: ColorScheme.fromSwatch(
+              primarySwatch: Colors.blue, accentColor: Colors.yellow)),
       home: const SettingsPage(),
     );
   }
@@ -89,6 +91,9 @@ class ConnectionPageState extends State<ConnectionPage> {
         itemCount: filteredEntries.length,
         itemBuilder: (context, fidx) => ListTile(
           title: Text(filteredEntries[fidx].value),
+          tileColor: filteredEntries[fidx].key == menu!.selectedEntry
+              ? Theme.of(context).colorScheme.secondary
+              : null,
           leading: multiSelect
               ? Icon(
                   selectedEntries[filteredEntries[fidx].key]

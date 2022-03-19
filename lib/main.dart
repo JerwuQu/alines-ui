@@ -128,65 +128,74 @@ class ConnectionPageState extends State<ConnectionPage> {
         ),
       );
 
-  Widget _menuScreen() => Scaffold(
-        appBar: AppBar(
-          title: Text(
-              '${menu!.title} (${filteredEntries.length}/${menu!.entries.length})'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.power_off),
+  Widget _menuScreen() {
+    var title =
+        '${menu!.title}\n(${filteredEntries.length}/${menu!.entries.length})';
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          title,
+          softWrap: true,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          textScaleFactor: title.length > 25 ? 0.5 : 1.0,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.power_off),
+            onPressed: () {
+              eventSub.cancel();
+              connection.destroy();
+              Navigator.pop(context);
+            },
+          )
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            child: TextFormField(
+              decoration: InputDecoration(
+                  hintText:
+                      menu!.customEntry ? 'Filter / Custom Entry' : 'Filter'),
+              onChanged: (str) {
+                var lowerStr = str.toLowerCase();
+                var newFilteredEntries = menu!.entries
+                    .asMap()
+                    .entries
+                    .where((e) => e.value.toLowerCase().contains(lowerStr))
+                    .toList();
+                setState(() => filteredEntries = newFilteredEntries);
+              },
+              onFieldSubmitted: menu!.customEntry
+                  ? (str) {
+                      connection.customEntry(str);
+                      setState(() => menu = null);
+                    }
+                  : null,
+            ),
+          ),
+          Expanded(child: _menuScreenList())
+        ],
+      ),
+      floatingActionButton: multiSelect
+          ? FloatingActionButton(
+              child: const Icon(Icons.send),
               onPressed: () {
-                eventSub.cancel();
-                connection.destroy();
-                Navigator.pop(context);
+                var selectedEntriesList = selectedEntries
+                    .asMap()
+                    .entries
+                    .where((el) => el.value)
+                    .map((el) => el.key)
+                    .toList();
+                connection.selectMultipleEntries(selectedEntriesList);
+                setState(() => menu = null);
               },
             )
-          ],
-        ),
-        body: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              child: TextFormField(
-                decoration: InputDecoration(
-                    hintText:
-                        menu!.customEntry ? 'Filter / Custom Entry' : 'Filter'),
-                onChanged: (str) {
-                  var lowerStr = str.toLowerCase();
-                  var newFilteredEntries = menu!.entries
-                      .asMap()
-                      .entries
-                      .where((e) => e.value.toLowerCase().contains(lowerStr))
-                      .toList();
-                  setState(() => filteredEntries = newFilteredEntries);
-                },
-                onFieldSubmitted: menu!.customEntry
-                    ? (str) {
-                        connection.customEntry(str);
-                        setState(() => menu = null);
-                      }
-                    : null,
-              ),
-            ),
-            Expanded(child: _menuScreenList())
-          ],
-        ),
-        floatingActionButton: multiSelect
-            ? FloatingActionButton(
-                child: const Icon(Icons.send),
-                onPressed: () {
-                  var selectedEntriesList = selectedEntries
-                      .asMap()
-                      .entries
-                      .where((el) => el.value)
-                      .map((el) => el.key)
-                      .toList();
-                  connection.selectMultipleEntries(selectedEntriesList);
-                  setState(() => menu = null);
-                },
-              )
-            : null,
-      );
+          : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

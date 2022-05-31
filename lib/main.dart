@@ -4,6 +4,7 @@ import 'package:alines/alines_connection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const AlinesApp());
@@ -17,6 +18,7 @@ class AlinesApp extends StatelessWidget {
     return MaterialApp(
       title: 'alines',
       theme: ThemeData(
+          textTheme: GoogleFonts.robotoTextTheme(Theme.of(context).textTheme),
           colorScheme: ColorScheme.fromSwatch(
               primarySwatch: Colors.blue, accentColor: Colors.yellow)),
       home: const SettingsPage(),
@@ -69,13 +71,15 @@ class ConnectionPageState extends State<ConnectionPage> {
           multiSelect = false;
         });
       } else if (e is CloseMenuEvent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Server closed menu')));
-        setState(() => menu = null);
+        if (menu != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Server closed menu')));
+          setState(() => menu = null);
+        }
       } else if (e is DisconnectEvent) {
         eventSub.cancel();
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Disconnected: ' + e.message)));
+            SnackBar(content: Text('Disconnected: ${e.message}')));
         Navigator.pop(context);
       } else if (e is DestroyedEvent) {
         eventSub.cancel();
@@ -271,6 +275,7 @@ class SettingsPageState extends State<SettingsPage> {
 
   Future connect() async {
     await savePrefs();
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
